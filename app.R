@@ -380,12 +380,11 @@ server <- function(input, output, session){
   output$downloadData <- downloadHandler(
     filename = function() { paste(input$dataset, '.csv', sep='') },
     content = function(file) {
-      aaa<-values$df
-      daaa<-dcast(aaa,formula = species + location + life + stage + Stage_duration ~variable)
-      daaa$Time_end<-as.Date(daaa$Time_end,origin = '1970-1-1')
-      daaa$Time_start<-as.Date(daaa$Time_start,origin = '1970-1-1')
-      browser()
-      write.csv(daaa, file)
+      df<-values$df
+      dfw<-dcast(df,formula = species + location + life + stage + Stage_duration ~variable)
+      dfw$Time_end<-as.Date(dfw$Time_end,origin = '1970-1-1')
+      dfw$Time_start<-as.Date(dfw$Time_start,origin = '1970-1-1')
+      write.csv(dfw, file)
     }
   )
   ################################### REGIONAL PLOT #################################
