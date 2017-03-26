@@ -75,7 +75,7 @@ ui <-
                               HTML('<br/>'),
                               fluidRow(
                                 column(10, offset = 1,
-                                  leafletOutput("map1")
+                                       leafletOutput("map1")
                                 )
                               )
                               
@@ -97,7 +97,7 @@ ui <-
                                      column(4, 
                                             HTML('<br/>'),
                                             h4('7. Download data as table'),
-                                            downloadButton('downloadData', 'Download'),
+                                            downloadButton('downloadData.csv', 'Download'),
                                             HTML('<br/><br/><br/>')
                                      )
                                    ),
@@ -151,15 +151,17 @@ ui <-
                                     h4('The Australian gridded climatic data used to estimate developmental times is derived from 15-year averages of the max and min temperatures at each day of the year. A daily temperature profile is calculated using a simple trigonometric function, with an amplitude spanning the max and min daily temperatures over a period of 24 hours.'),
                                     h2('Insect data'),
                                     h4('The rate of growth and development of insects and other invertebrates is strongly influenced by temperature. The temperature dependence of development varies between species, thus each species has a unique temperature response. Indeed, even within a species the temperature dependence may vary between different stages. This is accounted for in the model by assigning unique developmental functions to each stage of each insect. This functional response is derived from empirical data.'),
-                                    h4('The temperature - growth rate relationship for each of the pest species modelled in this platform can be viewed opposite. The species-specific variables and rate functions for each were derived from published records, and can be varied in consultation with James Maino. Similarly, new insect models for different pests can be added to this platform at any time, when based on published empirical data.'),
-                                    h4('For the maintenance and updating of this tool, please contact James Maino (info@cesaraustralia.com).
+                                    h4('The temperature - growth rate relationship for each of the pest species modelled in this platform can be viewed opposite. The species-specific variables and rate functions for each were derived from published records, and can be varied in consultation with Dr James Maino. Similarly, new insect models for different pests can be added to this platform at any time, when based on published empirical data.'),
+                                    h4('For the maintenance and updating of this tool, please contact Dr James Maino (info@cesaraustralia.com).
                                        ')
                                     ),
                              column(5,'',
                                     selectInput("species3", label = h4("Select species:"), 
                                                 choices = bugList, 
                                                 selected = bugList[[1]]),
-                                    plotOutput('tempresponse')
+                                    plotOutput('tempresponse'),
+                                    HTML('<br/>'),
+                                    textOutput('source')
                                     )
                       
                     )
@@ -251,7 +253,7 @@ server <- function(input, output, session){
     }
   })
   newEntry <- observe({
-    if(input$update > 0) {
+    if(input$update>0) {
       location<-paste0(isolate(input$location),', Australia')
       if(nchar(location) <16)location = 'Diamond Creek, VIC 3089' # if unrealistic location length
       fullLocation <- geocode(location, output = 'more')
@@ -377,7 +379,7 @@ server <- function(input, output, session){
       )
     }else{return(NULL)}
   })
-  output$downloadData <- downloadHandler(
+  output$downloadData.csv <- downloadHandler(
     filename = function() { paste(input$dataset, '.csv', sep='') },
     content = function(file) {
       df<-values$df
@@ -507,10 +509,9 @@ server <- function(input, output, session){
       }
       dl<-reshape2::melt(df, id = 'temp', variable.name = 'stage', 
                          value.name = 'dev')
-      p<-ggplot() + geom_line(data = dl, aes(x = temp, y = dev, color = stage)) +
+      p<-ggplot() + geom_line(data = dl, aes(x = temp, y = dev, linetype = stage, color = stage)) +
         xlab('Temperature (C)')+
         ylab('Development rate (1/d)')+ 
-        ggtitle(insect$source)+
         theme(text = element_text(size=20, colour = 'white'), #family='Nirmala UI',
               axis.text = element_text(size=20, colour = 'white'),
               legend.title=element_blank(),
@@ -529,7 +530,10 @@ server <- function(input, output, session){
       
       return(p)
     })
-    
+    output$source<-reactive({
+      insect<-getBug(input$species3)
+      return(paste('Source:', insect$source))
+      })  
     
   } # server(...
 

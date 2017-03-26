@@ -1,8 +1,8 @@
 pieris<-function(){
   # returns a structure containing species name, developmental function for each stage, and life-history category for each stage (egg, immature, pupa, adult)
   name <- 'Cabbage white butterfly'
-  sciname<-'Pieris brassicae'
-  source <- 'Pieris data source'
+  sciname<-'Pieris rapae'
+  source <- 'Jones, R.E. & P.M. Ives, 1979. The adaptiveness of searching and host selection behaviour in Pieris rapae (L.). Australian Journal of Ecology 4, 75-86.'
   
   # development as a function of temperature, C
   egg =function(temp){

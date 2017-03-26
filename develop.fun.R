@@ -10,7 +10,7 @@ develop<-function(Tmax, Tmin, startDay, startStage, insect){
   # 'name': the name of the bug
   # 'dev.funs': temperature dependent temperature function for each stage
   # 'life': a life-history category (egg,immature,pupa,adult) for each stage
-  
+
   # some checks
   if(length(startDay)!=1)stop('startDay must have length 1')
   if(length(Tmax[[1]])!=length(startStage))stop('number of locations must match length of startStage')
@@ -64,12 +64,14 @@ develop<-function(Tmax, Tmin, startDay, startStage, insect){
   
   # forward simulation
   h = ((startDay-1)*24)
-  for(day in startDay:365){
-    TMIN<-Tmin[[day]][]
-    TMAX<-Tmax[[day]][]
+  day = startDay # intialise day
+  while(day<730&any(curStage!=0)){
+    TMIN<-Tmin[[ifelse(day%%365==0,365,day%%365)]][] # index cannot be 0
+    TMAX<-Tmax[[ifelse(day%%365==0,365,day%%365)]][]
     for (dayhour in 0:23){
       h<-(day-1)*24+dayhour
       curDev<-curDev+hr.dev(h, TMIN, TMAX, curStage, insect$dev.funs) # increment dev
+      curDev[is.na(curDev)]<-0 # na's to 0
       curStage[curDev>1]<-curStage[curDev>1] + 1 # curStage
       D_st <- which(curDev>1) # demes with stage transitions
       S_st <- curStage[curDev>1] # new stages 
@@ -86,17 +88,21 @@ develop<-function(Tmax, Tmin, startDay, startStage, insect){
         }
       }
     }
+    if(D>1&&day>364) break
+    day = day+1 # increment day
   }
   
   curStage<-startStage
   curDev  <-rep(0, D)
   # backward simulation
-  for(day in (startDay-1):1){
-    TMIN<-Tmin[[day]][]
-    TMAX<-Tmax[[day]][]
+  day = startDay-1 # initialise
+  while(day>-730&any(curStage!=0)){
+    TMIN<-Tmin[[ifelse(day%%365==0,365,day%%365)]][] # index cannot be 0
+    TMAX<-Tmax[[ifelse(day%%365==0,365,day%%365)]][]
     for (dayhour in 23:0){
       h<-(day-1)*24+dayhour
       curDev<-curDev-hr.dev(h, TMIN, TMAX, curStage, insect$dev.funs) # decrement dev
+      curDev[is.na(curDev)]<-0 # na's to 0
       curStage[curDev<0]<-curStage[curDev<0] - 1 # curStage
       D_st <- which(curDev<0) # demes with stage transitions
       S_st <- curStage[curDev<0] # new stages
@@ -108,6 +114,9 @@ develop<-function(Tmax, Tmin, startDay, startStage, insect){
         }
       }
     }
+    print(day)
+    if(D>1&&day<1) break
+    day = day-1 # decrement day
   }
   data[,,'Stage_duration']<-(data[,,'Time_end']-data[,,'Time_start'])/24 # convert hours to days
   data[,,'Time_start'] <- data[,,'Time_start']/24 # convert hours to days

@@ -2,7 +2,7 @@ plutella<-function(){
   # returns a structure containing species name, developmental function for each stage, and life-history category for each stage (egg, immature, pupa, adult)
   name <- 'Diamondback moth'
   sciname<-'Plutella xylostella'
-  source <- 'Plutella data source'
+  source <- 'Goodwin, S., 1976. The dispersal and ecology of the diamond back moth, Plutella xylostella (l.), in Victoria. Ph.D. thesis, La Trobe University. 221 pp.'
   # development as a function of temperature, C
   egg =function(temp){
     DDREQ  = 72.5
