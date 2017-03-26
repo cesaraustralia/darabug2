@@ -1,94 +1,95 @@
-budworm<-function(){
+southern_armyworm<-function(){
   # returns a structure containing species name, developmental function for each stage, and life-history category for each stage (egg, immature, pupa, adult)
-  name <- 'Native Budworm'
-  sciname<-'Helicoverpa punctigera'
-  source <- 'Kobelt, A., 1988. Estimation of preliminary economic thresholds for Helicoverpa punctigera (Lepidoptera: Noctuidae) on field pea, using development and consumption rates. Honours (B.Sc) thesis, La Trobe University.'
+  name <- 'Southern armyworm'
+  sciname<-'Persectania ewingii'
+  source <- 'Helm, K.F., 1975. Migration of armyworm Persectania ewingii moths in spring and the origin of outbreaks. Journal of Australian Entomological Society 14, 229-26.'
+  
   # development as a function of temperature, C
   egg =function(temp){
-    DDREQ  = 80.3               
-    TUPPER = 35.0
-    TLOWER =  8.0
-    TMIN   =  9.0
+    DDREQ  = 136.0                   
+    TUPPER = 26.2     
+    TLOWER =  6.4     
+    TMIN   =  8.0    
     dev.rate.out<-temp-TLOWER
     dev.rate.out[temp>TUPPER|temp<=TLOWER]<-0
     dev.rate.out[temp>TLOWER&temp<TMIN]<-TMIN - TLOWER
     return(dev.rate.out/DDREQ)
   }
   L1=function(temp){
-    DDREQ  = 46.3               
-    TUPPER = 35.0
-    TLOWER = 12.0
-    TMIN   = 13.0
+    DDREQ  = 110.0                   
+    TUPPER = 27.2         
+    TLOWER = 4.0               
+    TMIN   = 6.0    
     dev.rate.out<-temp-TLOWER
     dev.rate.out[temp>TUPPER|temp<=TLOWER]<-0
     dev.rate.out[temp>TLOWER&temp<TMIN]<-TMIN - TLOWER
     return(dev.rate.out/DDREQ)
   }
   L2=function(temp){
-    DDREQ  = 46.3               
-    TUPPER = 35.0
-    TLOWER = 12.0
-    TMIN   = 13.0
+    DDREQ  = 110.0                   
+    TUPPER = 27.2         
+    TLOWER = 4.0               
+    TMIN   = 6.0  
     dev.rate.out<-temp-TLOWER
     dev.rate.out[temp>TUPPER|temp<=TLOWER]<-0
     dev.rate.out[temp>TLOWER&temp<TMIN]<-TMIN - TLOWER
     return(dev.rate.out/DDREQ)
   }
   L3=function(temp){
-    DDREQ  =  37.1                   
-    TUPPER = 35.0
-    TLOWER = 12.0
-    TMIN   = 13.0
+    DDREQ  = 110.0                   
+    TUPPER = 27.2         
+    TLOWER = 4.0               
+    TMIN   = 6.0  
     dev.rate.out<-temp-TLOWER
     dev.rate.out[temp>TUPPER|temp<=TLOWER]<-0
     dev.rate.out[temp>TLOWER&temp<TMIN]<-TMIN - TLOWER
     return(dev.rate.out/DDREQ)
   }
   L4=function(temp){
-    DDREQ  =  17.3                   
-    TUPPER = 35.0
-    TLOWER = 12.0
-    TMIN   = 13.0
+    DDREQ  = 110.0                   
+    TUPPER = 27.2         
+    TLOWER = 4.0               
+    TMIN   = 6.0  
     dev.rate.out<-temp-TLOWER
     dev.rate.out[temp>TUPPER|temp<=TLOWER]<-0
     dev.rate.out[temp>TLOWER&temp<TMIN]<-TMIN - TLOWER
     return(dev.rate.out/DDREQ)
   }
   L5=function(temp){
-    DDREQ  =  28.2                   
-    TUPPER = 35.0
-    TLOWER = 12.0
-    TMIN   = 13.0
+    DDREQ  = 110.0                   
+    TUPPER = 27.2         
+    TLOWER = 4.0               
+    TMIN   = 6.0  
     dev.rate.out<-temp-TLOWER
     dev.rate.out[temp>TUPPER|temp<=TLOWER]<-0
     dev.rate.out[temp>TLOWER&temp<TMIN]<-TMIN - TLOWER
     return(dev.rate.out/DDREQ)
   }
   L6=function(temp){
-    DDREQ  = 46.3                   
-    TUPPER = 35.0
-    TLOWER = 12.0
-    TMIN   = 13.0
+    DDREQ  = 110.0                   
+    TUPPER = 27.2         
+    TLOWER = 4.0               
+    TMIN   = 6.0  
     dev.rate.out<-temp-TLOWER
     dev.rate.out[temp>TUPPER|temp<=TLOWER]<-0
     dev.rate.out[temp>TLOWER&temp<TMIN]<-TMIN - TLOWER
     return(dev.rate.out/DDREQ)
   }
   pupa=function(temp){
-    DDREQ  =249.0                   
-    TUPPER = 35.0
-    TLOWER =  8.0
-    TMIN   =  9.0
+    DDREQ  =264.0                       
+    TUPPER = 30.6     
+    TLOWER =  9.3     
+    TMIN   =  9.3    
     dev.rate.out<-temp-TLOWER
     dev.rate.out[temp>TUPPER|temp<=TLOWER]<-0
     dev.rate.out[temp>TLOWER&temp<TMIN]<-TMIN - TLOWER
     return(dev.rate.out/DDREQ)
   }
   adult=function(temp){
-    DDREQ  = 26.0                   
-    TUPPER = 35.0
-    TLOWER =  8.0
-    TMIN   =  9.0
+    DDREQ  = 50.0                       
+    TUPPER = 31.0     
+    TLOWER =  6.4     
+    TMIN   =  6.4    
     dev.rate.out<-temp-TLOWER
     dev.rate.out[temp>TUPPER|temp<=TLOWER]<-0
     dev.rate.out[temp>TLOWER&temp<TMIN]<-TMIN - TLOWER
