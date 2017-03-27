@@ -1,10 +1,11 @@
 name: darabug2
+title:
 account: jamesmaino
 server: shinyapps.io
 appId: 136605
-bundleId: 648777
+bundleId: 764369
 url: https://jamesmaino.shinyapps.io/darabug2/
-when: 1481674531.14441
+when: 1490567665.60468
 asMultiple: FALSE
 asStatic: FALSE
-ignoredFiles: old/app (first attempt at regional prediction).R|old/app (first hover info attempt).R|old/app (first raster with leaflet attempt).R
+ignoredFiles: old/app (first attempt at regional prediction).R|old/app (first hover info attempt).R|old/app (first raster with leaflet attempt).R|old/darabug1vsDarabug2.R|old/data.Rdata|old/main.R|old/profile_code.R|old/profile1.out|old/profile2.out|old/proftable.R
