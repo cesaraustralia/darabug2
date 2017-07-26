@@ -459,8 +459,8 @@ server <- function(input, output, session){
           clearControls()
         }
     })
-    # TMAX <- Tmax+0.000001 # save to memory with +0.000001
-    # TMIN <- Tmin+0.000001
+    TMAX <- Tmax+0.000001 # save to memory with +0.000001
+    TMIN <- Tmin+0.000001
     observe({
       if(input$update2 > 0) {
         withProgress(message = "LOADING. PLEASE WAIT...", { # create progress bar
