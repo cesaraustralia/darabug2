@@ -14,7 +14,6 @@ library(rgdal)
 source('./getBug.R')
 source('./develop.fun.R')
 
-
 ################## INTIALISE DATA #######################
 myLabelFormat = function(...,dates=FALSE){ 
   if(dates){ 
@@ -59,48 +58,42 @@ ui <-
                      tabPanel("Local",
                           fluidRow(
                             column(width = 4,offset =0, "",
-                              selectInput("species", label = h4("1. Species observed:"), 
+                              textInput("simname", value = 'My simulation 1',
+                              label = h4("1. Input simulation name for plotting"), 
+                              placeholder = "e.g. My simulation 1"),
+                              selectInput("species", label = h4("2. Species observed:"), 
                                           choices = bugList, 
                                           selected = bugList[[1]],
                                           width = '100%'),
-                              dateInput('startDate', label = h4("2. Date observed:"), 
+                              dateInput('startDate', label = h4("3. Date observed:"), 
                                         value = paste0(curYear,'-6-1'), 
                                         min = paste0(curYear,'-1-1'), 
                                         max = paste0(curYear,'-12-31'),
                                         format = "dd-MM", startview = "month", weekstart = 0,
                                         language = "en", width = '100%'),
                               uiOutput("startStage"),
-                              textInput("location",label = h4("4. Input city and postcode, or select location on map "), placeholder = "Location, Postcode"),
-                              textOutput('location'),
+                              h4('5. Choose location'),
+                              column(6,
+                                     numericInput("long",value = 140.0, label = h4("Longitude (decimal)"),
+                                                  min = 113.0, max = 160.0)
+                                     ),
+                              column(
+                                6,numericInput("lat",value = -40.0, label = h4("Latitude (decimal)"),
+                                               min = -55.0, max = -10)
+                                     ),
                               HTML('<br/>'),
-                              fluidRow(
-                                column(10, offset = 1,
-                                       leafletOutput("map1")
-                                )
-                              )
+                              h4('6. Run simulation'),
+                              actionButton("update", "Run"),
+                              HTML('<br/>'),
+                              h4('7. Run another simulation or reset plot'),
+                              actionButton("reset", "Reset"),
+                              HTML('<br/>'),
+                              h4('8. Download data as table'),
+                              downloadButton('downloadData.csv', 'Download'),
+                              HTML('<br/>')
                               
                             ),
                             column(8, 
-                                   fluidRow(
-                                     column(4,
-                                            HTML('<br/>'),
-                                            h4('5. Run simulation'),
-                                            actionButton("update", "Run")
-                                           
-                                     ),
-                                     column(4, 
-                                             HTML('<br/>'),
-                                             h4('6. Run another simulation or reset plot'),
-                                             actionButton("reset", "Reset"),
-                                             HTML('<br/><br/><br/>')
-                                     ),
-                                     column(4, 
-                                            HTML('<br/>'),
-                                            h4('7. Download data as table'),
-                                            downloadButton('downloadData.csv', 'Download'),
-                                            HTML('<br/><br/><br/>')
-                                     )
-                                   ),
                                    # fluidRow(
                                      div(
                                        style = "position:relative",
@@ -175,66 +168,9 @@ server <- function(input, output, session){
     insect<-getBug(input$species)
     stageList<-lapply(1:length(names(insect$dev.funs)), FUN = function(x) x)
     names(stageList)<-names(insect$dev.funs)
-    selectInput("startStage", label = h4("3. Life stage observed:"), 
-                choices = stageList, 
+    selectInput("startStage", label = h4("4. Life stage observed:"),
+                choices = stageList,
                 selected = 2, width = '100%')
-  })
-  ## Make your initial map
-  output$map1 <- renderLeaflet({
-    leaflet() %>%
-      setView(lng = 135.51, lat = -25.98, zoom = 4) %>%
-      setMaxBounds(lng1 = 111.975 ,
-                   lat1 = -9.975,
-                   lng2 = 156.975,
-                   lat2 = -44.975)%>%
-      addTiles(
-        urlTemplate = "//{s}.tiles.mapbox.com/v3/jcheng.map-5ebohr46/{z}/{x}/{y}.png",
-        attribution = 'Maps by <a href="http://www.mapbox.com/">Mapbox</a>',
-        options = providerTileOptions( minZoom = 4)
-      )
-  })
-  
-  ## Observe mouse clicks and add circles
-  observeEvent({
-    input$map1_click
-    # input$map1_zoom
-    }, {
-    ## Get the click info like had been doing
-    click <- input$map1_click
-    clat <- click$lat
-    clng <- click$lng
-    # address <- revgeocode(c(clng,clat))
-    
-    ## Add the circle to the map proxy
-    ## so you dont need to re-render the whole thing
-    ## I also give the circles a group, "circles", so you can
-    ## then do something like hide all the circles with hideGroup('circles')
-    
-    leafletProxy('map1') %>% # use the proxy to save computation
-      clearShapes() %>%
-      addCircles(lng=clng, lat=clat, # group='circles',
-                 weight=1, radius=20000/input$map1_zoom, color='black', fillColor='orange',
-                 # popup=address, 
-                 fillOpacity=0.5, opacity=1)
-  })
-  output$location <- reactive({ 
-    fulllocation = ifelse(input$location=="", 'Diamond Creek, 3089', paste0(input$location, ', Australia'))             
-    location<-try(geocode(fulllocation, output = "all")$results[[1]]$formatted_address)
-    if(class(location)=='try-error'){
-      location = 'Diamond Creek, 3089'
-      stop('cannot find location')
-      }
-    sprintf(location)
-  })
-  observe({
-    click <- input$map1_click
-    if(!is.null(click)){
-      fullLocation <- revgeocode( c(click$lng,click$lat), output = 'more')
-      location<-paste0(fullLocation$locality,', ', fullLocation$administrative_area_level_1)
-      # This will change the value of input$location, based on location
-      if(nchar(location)<5) location =""
-      updateTextInput(session, "location", value = location)
-    }
   })
 
   values <- reactiveValues()
@@ -246,7 +182,7 @@ server <- function(input, output, session){
   # values$setpoints <- data.frame(start = NULL, species = NULL)
   observe({
     if(input$reset>0){
-     isolate({ 
+     isolate({
        values$df <- NULL
        values$count <-1
      })
@@ -254,33 +190,29 @@ server <- function(input, output, session){
   })
   newEntry <- observe({
     if(input$update>=0){
-      
-      location<-paste0(isolate(input$location),', Australia')
-      if(nchar(location) <16)location = 'Diamond Creek, VIC 3089' # if unrealistic location length
-      fullLocation <- geocode(location, output = 'more')
-      
+
       withProgress(message = "LOADING. PLEASE WAIT...", value = 0, { # create progress bar
         isolate({
           startDay<-as.numeric(format(input$startDate,'%j'))
-          TMAX <- extract(Tmax, matrix(c(fullLocation$lon, fullLocation$lat), ncol = 2))
-          TMIN <- extract(Tmin, matrix(c(fullLocation$lon, fullLocation$lat), ncol = 2))
+          TMAX <- extract(Tmax, matrix(c(input$long, input$lat), ncol = 2))
+          TMIN <- extract(Tmin, matrix(c(input$long, input$lat), ncol = 2))
           startStage<-ifelse(is.null(input$startStage),2,as.numeric(input$startStage))
           insect<-getBug(input$species)
-          location<-paste0(fullLocation$locality,', ', fullLocation$administrative_area_level_1)
+    
           # browser()
           data<-develop(TMAX,TMIN, startDay, startStage, insect)
-          
+
         })
-        updateTextInput(session, "location", value = location)
       })
+
+      isolate({
       df<-as.data.frame(data[1,,])
       df$stage<-names(insect$dev.funs)
       df$life<-insect$life
-      df$location<-location
-      df$species<-paste0(stringr::str_pad( isolate(values$count), 2, pad='0'), '. ',insect$name, '\n',location)
+      df$location<-input$simname
+      df$species<-paste0(stringr::str_pad( isolate(values$count), 2, pad='0'), '. ',insect$name, '\n',input$simname)
       mdf <- melt(df, measure.vars = c("Time_start", "Time_end"))
       mdf$value <- as.Date(paste0(curYear,'-1-1')) + mdf$value
-      isolate({
         values$df <-rbind(values$df ,mdf)
         values$setpoints <-rbind(values$setpoints,
                                  data.frame(start=as.Date(paste0(curYear,'-1-1'))+startDay-1,
@@ -299,22 +231,22 @@ server <- function(input, output, session){
       hover <- input$plot_hover
       point <- nearPoints(data, coordinfo = hover, threshold = 10, maxpoints = 1, addDist = TRUE)
       if (nrow(point) == 0) return(NULL)
-      
+
       # calculate point position INSIDE the image as percent of total dimensions
       # from left (horizontal) and from top (vertical)
       left_pct <- (hover$x - hover$domain$left) / (hover$domain$right - hover$domain$left)
       top_pct <- (hover$domain$top - hover$y) / (hover$domain$top - hover$domain$bottom)
-      
+
       # calculate distance from left and bottom side of the picture in pixels
       left_px <- hover$range$left + left_pct * (hover$range$right - hover$range$left)
       top_px <- hover$range$top + top_pct * (hover$range$bottom - hover$range$top)
-      
+
       # create style property fot tooltip
       # background color is set so tooltip is a bit transparent
       # z-index is set so we are sure are tooltip will be on top
       style <- paste0("position:absolute; z-index:100; color:black; background-color: rgba(245, 245, 245, 0.85); ",
                       "left:", left_px + 2, "px; top:", top_px + 2, "px;")
-      
+
       # actual tooltip created as wellPanel
       wellPanel(
         style = style,
@@ -390,6 +322,7 @@ server <- function(input, output, session){
       write.csv(dfw, file)
     }
   )
+  
   ################################### REGIONAL PLOT #################################
 
   output$startStage2 <- renderUI({
@@ -512,8 +445,7 @@ server <- function(input, output, session){
                          value.name = 'dev')
       p<-ggplot() + geom_line(data = dl, aes(x = temp, y = dev, linetype = stage, color = stage)) +
         xlab('Temperature (C)')+
-        ylab('Development rate (1/d)')+
-        theme(text = element_text(size=20, colour = 'white'), #family='Nirmala UI',
+        ylab('Development rate (1/d)')+ theme(text = element_text(size=20, colour = 'white'), #family='Nirmala UI',
               axis.text = element_text(size=20, colour = 'white'),
               legend.title=element_blank(),
               legend.key = element_blank(),
