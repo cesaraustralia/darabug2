@@ -2,7 +2,8 @@ whitefly<-function(){
   # returns a structure containing species name, developmental function for each stage, and life-history category for each stage (egg, immature, pupa, adult)
   name <- 'Silverleaf whitefly'
   sciname<-'Bemisia tabaci'
-  source <- 'Qiu, B. et al., 2003. Effect of temperature on the development and reproduction of Bemisia tabaci B biotype (Homoptera: Aleyrodidae) Entomologia sinica 10:1 43-29'
+  source <- HTML('Qiu, B. et al., 2003. Effect of temperature on the development and reproduction of Bemisia tabaci B biotype (Homoptera: Aleyrodidae) Entomologia sinica 10:1 43-29 <br> 
+  Enkegaard, A. 1993. The poinsettia strain of the cotton whitefly, Bemisia tabaci (Homoptera: Aleyrodidae), biological and demographic parameters on poinsettia (Euphorbia pulcherrima) in relation to temperature. Bulletin of Entomological Research 83, 535-546.')
   # development as a function of temperature, C
   egg =function(temp){
     DDREQ  = 89.96               

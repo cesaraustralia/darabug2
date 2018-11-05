@@ -33,6 +33,7 @@ curYear <- format(Sys.time(), '%Y')
 bug.files<- list.files('bugs/')
 bugs<-sapply(X = bug.files, FUN = strsplit, '[.]')
 bugs<-unlist(bugs)[(1:length(bugs))*2-1]
+bugs<-bugs[order(bugs)]
 bugList<-list()
 
 #build list of all bugs with data 
@@ -154,7 +155,7 @@ ui <-
                                                 selected = bugList[[1]]),
                                     plotOutput('tempresponse'),
                                     HTML('<br/>'),
-                                    textOutput('source')
+                                    htmlOutput('source')
                                     )
                       
                     )
@@ -465,7 +466,7 @@ server <- function(input, output, session){
     })
     output$source<-reactive({
       insect<-getBug(input$species3)
-      return(paste('Source:', insect$source))
+      return(HTML(paste('Source:<br>', insect$source)))
       })
 
   } # server(...
