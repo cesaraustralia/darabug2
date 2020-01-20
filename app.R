@@ -1,4 +1,5 @@
 library(shiny)
+library(magrittr)
 library(raster)
 library(sp)
 library(reshape2)
@@ -13,6 +14,9 @@ library(rgdal)
 # global
 source('./getBug.R')
 source('./develop.fun.R')
+
+
+
 
 ################## INTIALISE DATA #######################
 myLabelFormat = function(...,dates=FALSE){ 
@@ -49,8 +53,17 @@ projection(r)<-'+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0'
 ## Example SpatialPolygonsDataFrame
 data(wrld_simpl)
 SPDF <- subset(wrld_simpl, NAME=="Australia")
+
 ## crop and mask
 r1 <- mask(r, SPDF)
+
+# function for check long lat
+xy_in_aus = function(long,lat){ 
+  xy = data.frame(long = long, lat = lat)  
+  coordinates(xy) <- ~ long + lat 
+  proj4string(xy) <- proj4string(SPDF)
+  nrow(SPDF[xy,]) != 0 # 0 when no overlap
+}
 
 #UI 
 ui <- 
@@ -74,22 +87,35 @@ ui <-
                                         language = "en", width = '100%'),
                               uiOutput("startStage"),
                               h4('5. Choose location'),
+                              span(textOutput("checklatlong"), style="color:red"),
                               column(6,
                                      numericInput("long",value = 140.0, label = h4("Longitude (decimal)"),
                                                   min = 113.0, max = 160.0)
                                      ),
                               column(
-                                6,numericInput("lat",value = -40.0, label = h4("Latitude (decimal)"),
+                                6,numericInput("lat",value = -37.0, label = h4("Latitude (decimal)"),
                                                min = -55.0, max = -10)
                                      ),
+                              h4('6. Choose years of climate data'),
+                              column(6,
+                                     selectInput("yearstart", label = h4("Start year"), 
+                                                 choices = 1950:(as.numeric(curYear)-1), 
+                                                 selected = as.numeric(curYear)-1)
+                              ),
+                              column(6,
+                                     selectInput("yearfinish", label = h4("End year"), 
+                                                 choices = 1950:(as.numeric(curYear)-1), 
+                                                 selected = as.numeric(curYear)-1)
+                              ),
+                              HTML('<br/>'),                              
                               HTML('<br/>'),
-                              h4('6. Run simulation'),
+                              h4('7. Run simulation'),
                               actionButton("update", "Run"),
                               HTML('<br/>'),
-                              h4('7. Run another simulation or reset plot'),
+                              h4('8. Run another simulation or reset plot'),
                               actionButton("reset", "Reset"),
                               HTML('<br/>'),
-                              h4('8. Download data as table'),
+                              h4('9. Download data as table'),
                               downloadButton('downloadData.csv', 'Download'),
                               HTML('<br/>')
                               
@@ -142,7 +168,7 @@ ui <-
                                     h2('Description'),
                                     h4('Effective management of insect pests in crops requires an understanding of the rate at which insects develop. For example, it might be important to know how long a damaging stage of a pest may persist in the crop, or when eggs might hatch. The DARABUG2 program provides a convenient and readily available means of predicting development times using different insect models. Gridded climatic data of daily temperatures is used in these models to generate estimates of the dates of occurrence for each stage throughout the whole life-cycle of an insect.'),
                                     h2('Climate data'),
-                                    h4('The Australian gridded climatic data used to estimate developmental times is derived from 15-year averages of the max and min temperatures at each day of the year. A daily temperature profile is calculated using a simple trigonometric function, with an amplitude spanning the max and min daily temperatures over a period of 24 hours.'),
+                                    h4('For the local simulation, maximum and minimum daily temperatures are queried from the SILO database and, for each day, averaged over the selected years. The SILO database includes Australian climate data from 1889 to the present (www.longpaddock.qld.gov.au/silo). For the regional simulation, Australian gridded climatic data is averaged over 15-years (2001-2015) to estimate developmental times. A daily temperature profile is calculated using a simple trigonometric function, with an amplitude spanning the max and min daily temperatures over a period of 24 hours.'),
                                     h2('Insect data'),
                                     h4('The rate of growth and development of insects and other invertebrates is strongly influenced by temperature. The temperature dependence of development varies between species, thus each species has a unique temperature response. Indeed, even within a species the temperature dependence may vary between different stages. This is accounted for in the model by assigning unique developmental functions to each stage of each insect. This functional response is derived from empirical data.'),
                                     h4('The temperature - growth rate relationship for each of the pest species modelled in this platform can be viewed opposite. The species-specific variables and rate functions for each were derived from published records, and can be varied in consultation with Dr James Maino. Similarly, new insect models for different pests can be added to this platform at any time, when based on published empirical data.'),
@@ -189,17 +215,44 @@ server <- function(input, output, session){
      })
     }
   })
+  
+  output$checklatlong <- renderText({ 
+    if(xy_in_aus(input$long, input$lat)){
+      NULL 
+    }else{"selected coordinates not in Australia"}
+  }) 
+  
+  
   newEntry <- observe({
-    if(input$update>=0){
+    if(input$update>=0 & 
+       isolate(xy_in_aus(input$long, input$lat) & (input$yearstart <= input$yearfinish))){
 
       withProgress(message = "LOADING. PLEASE WAIT...", value = 0, { # create progress bar
         isolate({
           startDay<-as.numeric(format(input$startDate,'%j'))
-          TMAX <- extract(Tmax, matrix(c(input$long, input$lat), ncol = 2))
-          TMIN <- extract(Tmin, matrix(c(input$long, input$lat), ncol = 2))
+          # get temp from silo
+          params = list(
+            lat=paste(input$lat),
+            lon=paste(input$long),
+            start=sprintf("%s0101", input$yearstart), 
+            finish=sprintf("%s1231",input$yearfinish),
+            format="csv",
+            comment="RXN",
+            username="john.doe@xyz.com.au",
+            password="silo"
+          )
+          res <- httr::GET("https://www.longpaddock.qld.gov.au/cgi-bin/silo/DataDrillDataset.php", query=params)
+          # browser()
+          silodata <- readr::read_csv(httr::content(res, as="text")) 
+          silodata$jday = format(silodata$`YYYY-MM-DD`, "%j") 
+          silodata = silodata[silodata$jday != "366", ]
+            TMAX = aggregate(silodata$max_temp, list(silodata$jday), FUN = mean, na.rm=T)$x
+            TMIN = aggregate(silodata$min_temp, list(silodata$jday), FUN = mean, na.rm=T)$x
+          # get temp from aggregated AWAP layer 
+          # TMAX <- extract(Tmax, matrix(c(input$long, input$lat), ncol = 2))
+          # TMIN <- extract(Tmin, matrix(c(input$long, input$lat), ncol = 2))
           startStage<-ifelse(is.null(input$startStage),2,as.numeric(input$startStage))
           insect<-getBug(input$species)
-    
           # browser()
           data<-develop(TMAX,TMIN, startDay, startStage, insect)
 
