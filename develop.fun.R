@@ -1,4 +1,4 @@
-develop<-function(Tmax, Tmin, startDay, startStage, insect){
+develop<-function(Tmax, Tmin, startDay, startStage, insect, gens=1){
   # arguments:
   # Tmax: a raster stack or list of daily max temperatures for 365 days [365][D]
   # Tmin: a raster stack or list of daily min temperatures for 365 days [365][D]
@@ -12,9 +12,9 @@ develop<-function(Tmax, Tmin, startDay, startStage, insect){
   # 'life': a life-history category (egg,immature,pupa,adult) for each stage
 
   # some checks
-  if(length(startDay)!=1)stop('startDay must have length 1')
-  if(length(Tmax[[1]])!=length(startStage))stop('number of locations must match length of startStage')
-  if(length(names(Tmax))!=length(names(Tmin)))stop('size of climate data Tmin and Tmax must match')
+  if(length(startDay)!=1) stop('startDay must have length 1')
+  if(length(Tmax[[1]])!=length(startStage)) stop('number of locations must match length of startStage')
+  if(length(names(Tmax))!=length(names(Tmin))) stop('size of climate data Tmin and Tmax must match')
   
   # some useful variables
   D <- length(Tmax[[1]])
@@ -48,53 +48,67 @@ develop<-function(Tmax, Tmin, startDay, startStage, insect){
     return(dev) # return hourly development
   }
   
-  curStage<-startStage
-  curDev  <-rep(0, D)
   # create blank data frame for output data
   myCols<-c('Time_start', 'Time_end', 'Stage_duration')
-  data<-array(NA,c(D,S, length(myCols)),
-              dimnames=list(NULL, paste0('stage',1:S), 
+  data<-array(NA,c(D,S*gens, length(myCols)),
+              dimnames=list(NULL, paste0('stage',1:(S*gens)), 
                             myCols)) # 
   
   # set start and end times for intial conditions
   for(i in 1:D){
-    data[i,curStage[i],  'Time_start'] <- (startDay-1)*24
-    if(curStage[i]>1) data[i,curStage[i]-1,'Time_end'] <- (startDay-1)*24
+    data[i,startStage[i],  'Time_start'] <- (startDay-1)*24
+    if(startStage[i]>1) data[i,startStage[i]-1,'Time_end'] <- (startDay-1)*24
   }
   
   # forward simulation
-  h = ((startDay-1)*24)
-  day = startDay # intialise day
-  while(day<730&any(curStage!=0)){
-    TMIN<-Tmin[[ifelse(day%%365==0,365,day%%365)]][] # index cannot be 0
-    TMAX<-Tmax[[ifelse(day%%365==0,365,day%%365)]][]
-    for (dayhour in 0:23){
-      h<-(day-1)*24+dayhour
-      curDev<-curDev+hr.dev(h, TMIN, TMAX, curStage, insect$dev.funs) # increment dev
-      curDev[is.na(curDev)]<-0 # na's to 0
-      curStage[curDev>1]<-curStage[curDev>1] + 1 # curStage
-      D_st <- which(curDev>1) # demes with stage transitions
-      S_st <- curStage[curDev>1] # new stages 
-      curDev[curDev>1]<-0 # if new stage, set dev to zero
-      curStage[curStage==(S+1)]<-0 # if dead, set to zero
-      if(length(S_st)>0){
-        for(i in 1:length(S_st)){
-          if(S_st[i]<(S+1)){# if stage transition is not mortality
-            data[D_st[i],S_st[i],  'Time_start'] <- h 
-            data[D_st[i],S_st[i]-1,'Time_end']   <- h 
-          }else if(S_st[i]==(S+1)){
-            data[D_st[i],S_st[i]-1,'Time_end']   <- h # mortality
+  # initialise
+  h = ((startDay-1)*24) # start hour
+  day = startDay # start day
+  curStage<-startStage # start current stage
+  curDev  <-rep(0, D) # start development
+  gen = 1 # start generation
+  while(gen<=gens){
+    if(curStage == 1){
+      for(i in 1:D){
+        data[i,(gen-1)*S + curStage[i],  'Time_start'] <- (day-1)*24
+      }
+    }
+    while(day<730&any(curStage!=0)){
+      print(curStage)
+      TMIN<-Tmin[[ifelse(day%%365==0,365,day%%365)]][] # index cannot be 0
+      TMAX<-Tmax[[ifelse(day%%365==0,365,day%%365)]][]
+      for (dayhour in 0:23){
+        h<-(day-1)*24+dayhour
+        curDev<-curDev+hr.dev(h, TMIN, TMAX, curStage, insect$dev.funs) # increment dev
+        curDev[is.na(curDev)]<-0 # na's to 0
+        curStage[curDev>1]<-curStage[curDev>1] + 1 # curStage
+        D_st <- which(curDev>1) # demes with stage transitions
+        S_st <- curStage[curDev>1] # new stages 
+        curDev[curDev>1]<-0 # if new stage, set dev to zero
+        curStage[curStage==(S+1)]<-0 # if dead, set to zero
+        if(length(S_st)>0){
+          for(i in 1:length(S_st)){
+            if(S_st[i]<(S+1)){# if stage transition is not mortality
+              data[D_st[i],(gen-1)*S + S_st[i],  'Time_start'] <- h 
+              data[D_st[i],(gen-1)*S + S_st[i]-1,'Time_end']   <- h 
+            }else if(S_st[i]==(S+1)){
+              data[D_st[i],(gen-1)*S + S_st[i]-1,'Time_end']   <- h # mortality
+            }
           }
         }
       }
+      if(D>1&&day>364) break
+      day = day+1 # increment day
     }
-    if(D>1&&day>364) break
-    day = day+1 # increment day
+    curStage = 1 # start from egg
+    gen = gen+1 # increment generation
   }
   
-  curStage<-startStage
-  curDev  <-rep(0, D)
+ 
   # backward simulation
+  #initialise
+  curStage<-startStage # start current stage
+  curDev  <-rep(0, D) # start development
   day = startDay-1 # initialise
   while(day>-730&any(curStage!=0)){
     TMIN<-Tmin[[ifelse(day%%365==0,365,day%%365)]][] # index cannot be 0

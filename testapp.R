@@ -11,5 +11,9 @@ server <- function(input, output) {
     geocode(location, output = "all")$results[[1]]$formatted_address
                         
                         })
+  
+  # output$tempresponse<- renderPlot({
+  # ggplot()+geom_line(aes(1:10,1:10))
+  # })
   }
 shinyApp(ui = ui, server = server)

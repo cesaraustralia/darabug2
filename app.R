@@ -15,9 +15,6 @@ library(rgdal)
 source('./getBug.R')
 source('./develop.fun.R')
 
-
-
-
 ################## INTIALISE DATA #######################
 myLabelFormat = function(...,dates=FALSE){ 
   if(dates){ 
@@ -74,7 +71,7 @@ ui <-
                             column(width = 4,offset =0, "",
                               textInput("simname", value = 'My simulation 1',
                               label = h4("1. Input simulation name for plotting"), 
-                              placeholder = "e.g. My simulation 1"),
+                              placeholder = "e.g. My simulation 1", width="100%"),
                               selectInput("species", label = h4("2. Species observed:"), 
                                           choices = bugList, 
                                           selected = bugList[[1]],
@@ -96,7 +93,7 @@ ui <-
                                 6,numericInput("lat",value = -37.0, label = h4("Latitude (decimal)"),
                                                min = -55.0, max = -10)
                                      ),
-                              h4('6. Choose years of climate data'),
+                              h4('6. Choose year of climate data (or years to average)'),
                               column(6,
                                      selectInput("yearstart", label = h4("Start year"), 
                                                  choices = 1950:(as.numeric(curYear)-1), 
@@ -107,15 +104,19 @@ ui <-
                                                  choices = 1950:(as.numeric(curYear)-1), 
                                                  selected = as.numeric(curYear)-1)
                               ),
-                              HTML('<br/>'),                              
-                              HTML('<br/>'),
-                              h4('7. Run simulation'),
+                              selectInput("gens", 
+                                          label = h4("7. Number of generations to simulate"), 
+                                          choices = 1:5, 
+                                          selected = 1, width = "100%"),
+                              # HTML('<br/>'),                              
+                              # HTML('<br/>'),
+                              h4('8. Run simulation'),
                               actionButton("update", "Run"),
                               HTML('<br/>'),
-                              h4('8. Run another simulation or reset plot'),
+                              h4('9. Run another simulation or reset plot'),
                               actionButton("reset", "Reset"),
                               HTML('<br/>'),
-                              h4('9. Download data as table'),
+                              h4('10. Download data as table'),
                               downloadButton('downloadData.csv', 'Download'),
                               HTML('<br/>')
                               
@@ -172,8 +173,8 @@ ui <-
                                     h2('Insect data'),
                                     h4('The rate of growth and development of insects and other invertebrates is strongly influenced by temperature. The temperature dependence of development varies between species, thus each species has a unique temperature response. Indeed, even within a species the temperature dependence may vary between different stages. This is accounted for in the model by assigning unique developmental functions to each stage of each insect. This functional response is derived from empirical data.'),
                                     h4('The temperature - growth rate relationship for each of the pest species modelled in this platform can be viewed opposite. The species-specific variables and rate functions for each were derived from published records, and can be varied in consultation with Dr James Maino. Similarly, new insect models for different pests can be added to this platform at any time, when based on published empirical data.'),
-                                    h4('For the maintenance and updating of this tool, please contact Dr James Maino (info@cesaraustralia.com).
-                                       ')
+                                    h4("This program was developed using many sources of data and with intellectual input from international researchers and representatives of QDAF, SARDI, DPIRD, cesar, and NSW DPI. Development of the tool was supported through funding from GRDC. Notably, the framework builds on past international and domestic efforts to predict the phenology of crop pests such as Agriculture Victoria's original DARABUG program and UC IPM (ipm.ucanr.edu). Individuals who provided input were Garry McDonald, Melina Miles, Julia Severi, Dusty Severtson and Jessica Lye. The tool was developed by James Maino, who can be contacted for any maintenance or technical requirements (info@cesaraustralia.com).
+                                       ")
                                     ),
                              column(5,'',
                                     selectInput("species3", label = h4("Select species:"), 
@@ -254,7 +255,7 @@ server <- function(input, output, session){
           startStage<-ifelse(is.null(input$startStage),2,as.numeric(input$startStage))
           insect<-getBug(input$species)
           # browser()
-          data<-develop(TMAX,TMIN, startDay, startStage, insect)
+          data<-develop(TMAX,TMIN, startDay, startStage, insect, gens=as.numeric(input$gens))
 
         })
       })
@@ -264,15 +265,18 @@ server <- function(input, output, session){
       df$stage<-names(insect$dev.funs)
       df$life<-insect$life
       df$location<-input$simname
+      df$long = input$long
+      df$lat  = input$lat
+      df$generation = ceiling(1:nrow(df) / length(insect$dev.funs))
       df$species<-paste0(stringr::str_pad( isolate(values$count), 2, pad='0'), '. ',insect$name, '\n',input$simname)
       mdf <- melt(df, measure.vars = c("Time_start", "Time_end"))
-      mdf$value <- as.Date(paste0(curYear,'-1-1')) + mdf$value
-        values$df <-rbind(values$df ,mdf)
-        values$setpoints <-rbind(values$setpoints,
-                                 data.frame(start=as.Date(paste0(curYear,'-1-1'))+startDay-1,
-                                            species=df$species[1]
-                                 )
-        )
+      mdf$value <- as.Date(paste0(input$yearfinish,'-01-01')) + mdf$value
+      values$df <-rbind(values$df ,mdf)
+        # values$setpoints <-rbind(values$setpoints,
+        #                          data.frame(start=as.Date(paste0(curYear,'-1-1'))+startDay-1,
+        #                                     species=df$species[1]
+        #                          )
+        # )
         values$count<-values$count+1
       })
     }
@@ -345,7 +349,8 @@ server <- function(input, output, session){
           # }
           weekspan<-as.numeric( max(data$value)-min(data$value))/7
           p<-ggplot(data)+
-            geom_line(aes(value, species, colour = life),size = 6) +
+            geom_line(aes(value, species, colour = life, 
+                          group=paste(life, generation, species)),size = 6) +
             geom_point(aes(value, species), colour = 'black', size=6)+
             ylab(NULL) +
             xlab(NULL) +
@@ -370,10 +375,12 @@ server <- function(input, output, session){
     filename = function() { paste('data_darabug.csv', sep='') },
     content = function(file) {
       df<-values$df
-      dfw<-dcast(df,formula = species + location + life + stage + Stage_duration ~variable)
+      dfw<-dcast(df,formula = species + location +long + lat + generation +
+                   life + stage + Stage_duration ~variable)
       dfw$Time_end<-as.Date(dfw$Time_end,origin = '1970-1-1')
       dfw$Time_start<-as.Date(dfw$Time_start,origin = '1970-1-1')
-      write.csv(dfw, file)
+      dfw = dfw[order(dfw$species, dfw$Time_start), ]
+      write.csv(dfw, file, row.names = FALSE)
     }
   )
   
