@@ -1,11 +1,12 @@
-leafminer<-function(){
+vegetable_leafminer<-function(){
   # returns a structure containing species name, developmental function for each stage, and life-history category for each stage (egg, immature, pupa, adult)
   name <- 'Vegetable leafminer'
   sciname<-'Liriomyza sativae'
-  source <- 'https://cipotato.org/riskatlasforafrica/7-3-10-liriomyza-sativae-mujica-et-al/'
+  source <- 'Mujica et al 2016 https://cipotato.org/riskatlasforafrica/7-3-10-liriomyza-sativae-mujica-et-al/'
   
   # development rate, 1/d, as a function of temperature, C
   egg =function(temp){
+    # Model 2: SharpeDeMichelle 2
     p  = 0.411
     To = 295.9
     Tl = 179.804
@@ -18,7 +19,8 @@ leafminer<-function(){
     return(dev.rate.out)
   }
   
-  L1=function(temp){
+  larvae=function(temp){
+    # Model 46: Janish 1
     Dmin = 2.743
     Topt = 33.519
     K    = 0.118
@@ -28,6 +30,7 @@ leafminer<-function(){
   }
 
  pupa=function(temp){
+   # Model 1: SharpeDeMichelle 1
    p  = 0.049
    To = 288.52
    Tl = 284.349
@@ -40,7 +43,7 @@ leafminer<-function(){
    return(dev.rate.out)
  }
   
-  dev.funs<-list(egg=egg,L1=L1, pupa=pupa)
+  dev.funs<-list(egg=egg,larvae=larvae, pupa=pupa)
   life<-c('egg','immature','pupa') # possibly write script to search for adult and egg/pupa and assume all else immature.
   
   return(list(name=name,dev.funs=dev.funs,life=life, sciname=sciname, source = source))
