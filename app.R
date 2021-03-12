@@ -11,6 +11,9 @@ library(shinythemes)
 library(maptools)  ## For wrld_simpl
 library(rgdal)
 
+library(sf)
+
+
 # global
 source('./getBug.R')
 source('./develop.fun.R')
@@ -28,6 +31,9 @@ myLabelFormat = function(...,dates=FALSE){
 
 Tmin<-brick('data/mu_Tmin_for_DOY_ag10.tif')
 Tmax<-brick('data/mu_Tmax_for_DOY_ag10.tif')
+crs(Tmin) <- CRS("+init=epsg:4326")
+crs(Tmax) <- CRS("+init=epsg:4326")
+
 
 curYear <- format(Sys.time(), '%Y')
 
@@ -46,21 +52,30 @@ for (bug in bugs){
 
 
 r<- Tmax[[1]]
-projection(r)<-'+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0'
+# projection(r)<-'+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0'
 ## Example SpatialPolygonsDataFrame
 data(wrld_simpl)
-SPDF <- subset(wrld_simpl, NAME=="Australia")
+SPDF <- subset(wrld_simpl, NAME=="Australia") %>% 
+  sf::st_as_sf() %>% 
+  sf::st_set_crs(CRS("+init=epsg:4326"))
 
 ## crop and mask
 r1 <- mask(r, SPDF)
 
 # function for check long lat
-xy_in_aus = function(long,lat){ 
-  xy = data.frame(long = long, lat = lat)  
-  coordinates(xy) <- ~ long + lat 
-  proj4string(xy) <- proj4string(SPDF)
-  nrow(SPDF[xy,]) != 0 # 0 when no overlap
+# xy_in_aus = function(long,lat){ 
+#   xy = data.frame(long = long, lat = lat)  
+#   coordinates(xy) <- ~ long + lat 
+#   proj4string(xy) <- proj4string(SPDF)
+#   nrow(SPDF[xy,]) != 0 # 0 when no overlap
+# }
+xy_in_aus <- function(long, lat){
+  data.frame(x = long, y = lat) %>% 
+    sf::st_as_sf(coords = 1:2, crs = 4326) %>% 
+    sf::st_intersection(sf::st_geometry(SPDF)) %>% 
+    nrow() != 0
 }
+
 
 #UI 
 ui <- 
@@ -83,40 +98,41 @@ ui <-
                                         format = "dd-MM", startview = "month", weekstart = 0,
                                         language = "en", width = '100%'),
                               uiOutput("startStage"),
-                              h4('5. Choose location'),
-                              span(textOutput("checklatlong"), style="color:red"),
-                              column(6,
-                                     numericInput("long",value = 140.0, label = h4("Longitude (decimal)"),
-                                                  min = 113.0, max = 160.0)
-                                     ),
-                              column(
-                                6,numericInput("lat",value = -37.0, label = h4("Latitude (decimal)"),
-                                               min = -55.0, max = -10)
-                                     ),
-                              h4('6. Choose year of climate data (or years to average)'),
-                              column(6,
+                              
+                              
+                              h4('5. Choose location, year and number of generations'),
+                              span(textOutput("checklatlong"), style="color:GoldenRod"),
+                              
+                              column(7,
+                                     leafletOutput("smap", height = 310)
+                              ),
+                              # h4('6. Choose year of climate data (or years to average)'),
+                              column(5,
                                      selectInput("yearstart", label = h4("Start year"), 
                                                  choices = 1950:(as.numeric(curYear)-1), 
-                                                 selected = as.numeric(curYear)-1)
-                              ),
-                              column(6,
+                                                 selected = as.numeric(curYear)-1),
+                                     
                                      selectInput("yearfinish", label = h4("End year"), 
                                                  choices = 1950:(as.numeric(curYear)-1), 
-                                                 selected = as.numeric(curYear)-1)
+                                                 selected = as.numeric(curYear)-1),
+                                     
+                                     selectInput("gens", 
+                                                 label = h4("Number of generations to simulate"),
+                                                 choices = 1:5, 
+                                                 selected = 1),
                               ),
-                              selectInput("gens", 
-                                          label = h4("7. Number of generations to simulate"), 
-                                          choices = 1:5, 
-                                          selected = 1, width = "100%"),
+                              
+                              # textOutput("checklatlong"), style="color:red"
+                              
                               # HTML('<br/>'),                              
                               # HTML('<br/>'),
-                              h4('8. Run simulation'),
+                              h4('6. Run simulation'),
                               actionButton("update", "Run"),
                               HTML('<br/>'),
-                              h4('9. Run another simulation or reset plot'),
+                              h4('7. Run another simulation or reset plot'),
                               actionButton("reset", "Reset"),
                               HTML('<br/>'),
-                              h4('10. Download data as table'),
+                              h4('8. Download data as table'),
                               downloadButton('downloadData.csv', 'Download'),
                               HTML('<br/>')
                               
@@ -219,24 +235,52 @@ server <- function(input, output, session){
     }
   })
   
+  # set default values for click
+  input_coords <- reactiveValues()
+  input_coords$long <- 140.0
+  input_coords$lat <- -35.0
+
+  # update the click
+  observe({
+    if(!is.null(input$smap_click)){
+      input_coords$long <- round(input$smap_click$lng, 2)
+      input_coords$lat <- round(input$smap_click$lat, 2)
+    }
+  })
+  
+  # add the small map
+  output$smap <- renderLeaflet({
+    leaflet() %>%
+      setView(lng = 135.51, lat = -25.98, zoom = 3) %>%
+      addTiles()
+  })
+  
+  # show coordinates with click
   output$checklatlong <- renderText({ 
-    if(xy_in_aus(input$long, input$lat)){
-      NULL 
-    }else{"selected coordinates not in Australia"}
+    # update the text if click on the map
+    if(xy_in_aus(input_coords$long, input_coords$lat)){
+      paste0("Selected coordinates:  longitude ", input_coords$long, "   latitude ", input_coords$lat) 
+    } else{
+      "Selected coordinates is not in Australia"
+      
+    }
   }) 
   
   
   newEntry <- observe({
+
+    # browser()
+
     if(input$update>=0 & 
-       isolate(xy_in_aus(input$long, input$lat) & (input$yearstart <= input$yearfinish))){
+       isolate(xy_in_aus(input_coords$long, input_coords$lat) & (input$yearstart <= input$yearfinish))){
 
       withProgress(message = "LOADING. PLEASE WAIT...", value = 0, { # create progress bar
         isolate({
           startDay<-as.numeric(format(input$startDate,'%j'))
           # get temp from silo
           params = list(
-            lat=paste(input$lat),
-            lon=paste(input$long),
+            lat=paste(input_coords$lat),
+            lon=paste(input_coords$long),
             start=sprintf("%s0101", input$yearstart), 
             finish=sprintf("%s1231",input$yearfinish),
             format="csv",
@@ -252,8 +296,8 @@ server <- function(input, output, session){
             TMAX = aggregate(silodata$max_temp, list(silodata$jday), FUN = mean, na.rm=T)$x
             TMIN = aggregate(silodata$min_temp, list(silodata$jday), FUN = mean, na.rm=T)$x
           # get temp from aggregated AWAP layer 
-          # TMAX <- extract(Tmax, matrix(c(input$long, input$lat), ncol = 2))
-          # TMIN <- extract(Tmin, matrix(c(input$long, input$lat), ncol = 2))
+          # TMAX <- extract(Tmax, matrix(c(input_coords$long, input_coords$lat), ncol = 2))
+          # TMIN <- extract(Tmin, matrix(c(input_coords$long, input_coords$lat), ncol = 2))
           startStage<-ifelse(is.null(input$startStage),2,as.numeric(input$startStage))
           insect<-getBug(input$species)
           # browser()
@@ -267,8 +311,8 @@ server <- function(input, output, session){
       df$stage<-names(insect$dev.funs)
       df$life<-insect$life
       df$location<-input$simname
-      df$long = input$long
-      df$lat  = input$lat
+      df$long = input_coords$long
+      df$lat  = input_coords$lat
       df$generation = ceiling(1:nrow(df) / length(insect$dev.funs))
       df$species<-paste0(stringr::str_pad( isolate(values$count), 2, pad='0'), '. ',insect$name, '\n',input$simname)
       mdf <- melt(df, measure.vars = c("Time_start", "Time_end"))
