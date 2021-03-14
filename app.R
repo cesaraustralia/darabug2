@@ -1,6 +1,6 @@
 library(shiny)
 library(magrittr)
-library(raster)
+# library(raster)
 library(sp)
 library(reshape2)
 library(ggplot2)
@@ -12,6 +12,7 @@ library(maptools)  ## For wrld_simpl
 library(rgdal)
 
 library(sf)
+library(terra)
 
 
 # global
@@ -29,10 +30,10 @@ myLabelFormat = function(...,dates=FALSE){
   }
 }
 
-Tmin<-brick('data/mu_Tmin_for_DOY_ag10.tif')
-Tmax<-brick('data/mu_Tmax_for_DOY_ag10.tif')
-crs(Tmin) <- CRS("+init=epsg:4326")
-crs(Tmax) <- CRS("+init=epsg:4326")
+Tmin <- rast('data/mu_Tmin_for_DOY_ag10.tif')
+Tmax <- rast('data/mu_Tmax_for_DOY_ag10.tif')
+crs(Tmin) <- as.character(CRS("+init=epsg:4326"))
+crs(Tmax) <- as.character(CRS("+init=epsg:4326"))
 
 
 curYear <- format(Sys.time(), '%Y')
@@ -51,7 +52,7 @@ for (bug in bugs){
 }
 
 
-r<- Tmax[[1]]
+# r <- Tmax[[1]]
 # projection(r)<-'+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0'
 ## Example SpatialPolygonsDataFrame
 data(wrld_simpl)
@@ -60,7 +61,7 @@ SPDF <- subset(wrld_simpl, NAME=="Australia") %>%
   sf::st_set_crs(CRS("+init=epsg:4326"))
 
 ## crop and mask
-r1 <- mask(r, SPDF)
+r1 <- terra::mask(Tmax[[1]], terra::vect(SPDF))
 
 # function for check long lat
 # xy_in_aus = function(long,lat){ 
@@ -221,10 +222,10 @@ server <- function(input, output, session){
 
   values <- reactiveValues()
   values$df <- NULL
-  values$count<-1
-  values$raster<-r1
+  values$count <- 1
+  values$raster <- r1
   # values$raster[]<-NA
-  values$regionalSim<-NULL
+  values$regionalSim <- NULL
   # values$setpoints <- data.frame(start = NULL, species = NULL)
   observe({
     if(input$reset>0){
@@ -293,15 +294,15 @@ server <- function(input, output, session){
           silodata <- readr::read_csv(httr::content(res, as="text")) 
           silodata$jday = format(silodata$`YYYY-MM-DD`, "%j") 
           silodata = silodata[silodata$jday != "366", ]
-            TMAX = aggregate(silodata$max_temp, list(silodata$jday), FUN = mean, na.rm=T)$x
-            TMIN = aggregate(silodata$min_temp, list(silodata$jday), FUN = mean, na.rm=T)$x
+          TMAX = aggregate(silodata$max_temp, list(silodata$jday), FUN = mean, na.rm=T)$x
+          TMIN = aggregate(silodata$min_temp, list(silodata$jday), FUN = mean, na.rm=T)$x
           # get temp from aggregated AWAP layer 
           # TMAX <- extract(Tmax, matrix(c(input_coords$long, input_coords$lat), ncol = 2))
           # TMIN <- extract(Tmin, matrix(c(input_coords$long, input_coords$lat), ncol = 2))
-          startStage<-ifelse(is.null(input$startStage),2,as.numeric(input$startStage))
-          insect<-getBug(input$species)
+          startStage <- ifelse(is.null(input$startStage),2,as.numeric(input$startStage))
+          insect <- getBug(input$species)
           # browser()
-          data<-develop(TMAX,TMIN, startDay, startStage, insect, gens=as.numeric(input$gens))
+          data <- develop(TMAX, TMIN, startDay, startStage, insect, gens=as.numeric(input$gens))
 
         })
       })
@@ -394,7 +395,7 @@ server <- function(input, output, session){
           #                                shape = 124, size = 10,colour = 'red')
           # }
           weekspan<-as.numeric( max(data$value)-min(data$value))/7
-          p<-ggplot(data)+
+          p <- ggplot(data)+
             geom_line(aes(value, species, colour = life, 
                           group=paste(life, generation, species)),size = 6) +
             geom_point(aes(value, species), colour = 'black', size=6)+
@@ -430,6 +431,9 @@ server <- function(input, output, session){
     }
   )
   
+  
+  
+  
   ################################### REGIONAL PLOT #################################
 
   output$startStage2 <- renderUI({
@@ -457,9 +461,8 @@ server <- function(input, output, session){
         bounds <- input$map2_bounds
         latRng <- range(bounds$north, bounds$south)
         lngRng <- range(bounds$east, bounds$west)
-        # browser()
-        tryCatch(crop(values$raster, extent(c(lngRng, latRng))),
-                 error = function(x)values$raster)
+        tryCatch(terra::crop(values$raster, terra::ext(c(lngRng, latRng))),
+                 error = function(x) values$raster)
     })
     pal <- reactive( {
       # browser()
@@ -486,7 +489,7 @@ server <- function(input, output, session){
         # browser()
         leafletProxy('map2')%>%
           removeTiles(layerId="rasimg") %>%
-          addRasterImage(rasterBounds(), opacity=0.5, layerId = 'rasimg',colors = pal()) %>%
+          addRasterImage(raster::raster(rasterBounds()), opacity=0.5, layerId = 'rasimg',colors = pal()) %>%
           clearControls() %>%
         addLegend(pal = pal(), values = values(rasterBounds()),
                   title = paste0(names(getBug(input$species2)$dev.funs)[as.integer(input$endStage2)],
@@ -506,15 +509,15 @@ server <- function(input, output, session){
         withProgress(message = "LOADING. PLEASE WAIT...", { # create progress bar
           isolate({
             startDay<-as.numeric(format(input$startDate2,'%j'))
-            startStage<-rep(as.numeric(input$startStage2),length(TMAX[[1]]))
+            startStage<-rep(as.numeric(input$startStage2), ncell(TMAX[[1]]))
             endStage<-as.numeric(input$endStage2)
             insect<-getBug(input$species2)
             # load('data.Rdata') # bypass computation during debugging
-            data<-develop(TMAX,TMIN, startDay, startStage, insect)
-            values$regionalSim<-data
+            data <- develop(TMAX,TMIN, startDay, startStage, insect)
+            values$regionalSim <- data
             # browser()
-            values$raster[]<-data[,endStage,'Time_end']
-            values$raster <- mask(values$raster, SPDF)
+            values$raster[] <- data[,endStage,'Time_end']
+            values$raster <- terra::mask(values$raster, terra::vect(SPDF))
           })
         })
       }
@@ -527,17 +530,19 @@ server <- function(input, output, session){
         # browser()
         isolate({
         endStage<-as.numeric(input$endStage2)
-        values$raster[]<-values$regionalSim[,endStage,'Time_end']
+        values$raster[] <- values$regionalSim[,endStage,'Time_end']
         # browser()
         minDate<-as.numeric(format(input$dateRange2[1],'%j'))
         maxDate<-as.numeric(format(input$dateRange2[2],'%j'))
-        values$raster[values$raster[]<minDate]<-NA
-        values$raster[values$raster[]>maxDate]<-NA
-        values$raster <- mask(values$raster, SPDF)
+        values$raster[which(values$raster[] < minDate)] <- NA
+        values$raster[which(values$raster[] > maxDate)] <- NA
+        values$raster <- terra::mask(values$raster, terra::vect(SPDF))
         })
       }
     })
 
+    
+    
     ########################## INSECT PLOT PAGE ###########################
     # include about here
     output$tempresponse<- renderPlot(bg="transparent",{

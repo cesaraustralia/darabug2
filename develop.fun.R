@@ -11,13 +11,15 @@ develop<-function(Tmax, Tmin, startDay, startStage, insect, gens=1){
   # 'dev.funs': temperature dependent temperature function for each stage
   # 'life': a life-history category (egg,immature,pupa,adult) for each stage
 
+  # browser()
+  
   # some checks
   if(length(startDay)!=1) stop('startDay must have length 1')
-  if(length(Tmax[[1]])!=length(startStage)) stop('number of locations must match length of startStage')
+  if(ncell(Tmax[[1]])!=length(startStage)) stop('number of locations must match length of startStage')
   if(length(names(Tmax))!=length(names(Tmin))) stop('size of climate data Tmin and Tmax must match')
   
   # some useful variables
-  D <- length(Tmax[[1]])
+  D <- ncell(Tmax[[1]])
   S <- length(insect$dev.funs)
   
   # hourly temp as a function of Tmin, Tmax, time (of day),d
